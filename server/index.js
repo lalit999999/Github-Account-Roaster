@@ -22,19 +22,7 @@ app.use((req, res, next) => {
     next();
 });
 
-/**
- * POST /api/roast
- * 
- * Request body:
- * {
- *   "username": "github-username"
- * }
- * 
- * Security:
- * - API keys are stored in .env.local (NOT exposed to frontend)
- * - Frontend never directly calls GitHub or AI APIs
- * - All sensitive operations happen on the backend
- */
+
 app.post('/api/roast', async (req, res) => {
     try {
         const { username } = req.body;
@@ -70,10 +58,6 @@ app.post('/api/roast', async (req, res) => {
     }
 });
 
-/**
- * GET /api/health
- * Health check endpoint
- */
 app.get('/api/health', (req, res) => {
     res.status(200).json({
         status: 'ok',
@@ -81,9 +65,7 @@ app.get('/api/health', (req, res) => {
     });
 });
 
-/**
- * 404 handler
- */
+
 app.use((req, res) => {
     res.status(404).json({
         error: 'Not found',
@@ -91,9 +73,7 @@ app.use((req, res) => {
     });
 });
 
-/**
- * Error handler
- */
+
 app.use((err, req, res, next) => {
     console.error('Server error:', err);
     res.status(500).json({

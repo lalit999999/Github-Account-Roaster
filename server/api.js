@@ -161,7 +161,7 @@ Generate 3-5 funny, clever roast bullet points about this developer's GitHub pro
 
     try {
         const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${aiApiKey}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${aiApiKey}`,
             {
                 method: 'POST',
                 headers: {
