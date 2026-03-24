@@ -1,10 +1,12 @@
 import { useState } from "react";
-import { motion } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
 import { UsernameInput } from "./components/UsernameInput";
 import { LoadingSkeleton } from "./components/LoadingSkeleton";
 import { RoastCard, RoastData } from "./components/RoastCard";
+import { ErrorDisplay } from "./components/ErrorDisplay";
 import { ShareButtons } from "./components/ShareButtons";
 import { Sparkles } from "lucide-react";
+import { ErrorType, ERROR_MESSAGES } from "./utils/errors";
 
 // Mock roast data generator
 const generateMockRoast = (username: string): RoastData => {
@@ -60,26 +62,62 @@ const generateMockRoast = (username: string): RoastData => {
 export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [roastData, setRoastData] = useState<RoastData | null>(null);
+  const [error, setError] = useState<ErrorType | null>(null);
 
   const handleRoast = async (username: string) => {
     setIsLoading(true);
     setRoastData(null);
+    setError(null);
 
     try {
+      // Client-side validation
+      if (!username || username.trim().length === 0) {
+        setError(ErrorType.EMPTY_USERNAME);
+        setIsLoading(false);
+        return;
+      }
+
+      if (!/^[a-zA-Z0-9-_]+$/.test(username)) {
+        setError(ErrorType.INVALID_USERNAME);
+        setIsLoading(false);
+        return;
+      }
+
+      // For now, using mock data since we're in a Vite env without backend
+      // In production, you would call your actual API here
+      const mockData = generateMockRoast(username);
+      setRoastData(mockData);
+
+      // Example of how to call the API if you had a proper backend:
+      /*
       const res = await fetch("/api/roast", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ username }),
+        body: JSON.stringify({ 
+          username,
+          aiApiKey: import.meta.env.VITE_AI_API_KEY,
+          githubToken: import.meta.env.VITE_GITHUB_TOKEN,
+        }),
       });
 
       if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || "Failed to generate roast");
+        const errorData = await res.json();
+        const errorType = errorData.error?.type || "UNKNOWN_ERROR";
+        setError(errorType as ErrorType);
+        setIsLoading(false);
+        return;
       }
 
       const data = await res.json();
+
+      // Handle error responses
+      if (data.error) {
+        setError(data.error.type as ErrorType);
+        setIsLoading(false);
+        return;
+      }
 
       // Transform API response to match RoastData format
       setRoastData({
@@ -89,11 +127,15 @@ export default function App() {
         roasts: data.roasts,
         category: data.roasts.length > 0 ? "GitHub Developer" : "Unknown",
       });
-    } catch (error) {
-      console.error("API Error:", error);
-      // Fallback to mock data on error
-      const mockData = generateMockRoast(username);
-      setRoastData(mockData);
+      */
+    } catch (error: any) {
+      console.error("Error:", error);
+      // Network or other errors
+      if (error.message?.includes("fetch")) {
+        setError(ErrorType.NETWORK_ERROR);
+      } else {
+        setError(ErrorType.UNKNOWN_ERROR);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -102,6 +144,7 @@ export default function App() {
   const handleReset = () => {
     setRoastData(null);
     setIsLoading(false);
+    setError(null);
   };
 
   return (
@@ -190,6 +233,18 @@ export default function App() {
             Let AI roast your coding habits.
           </motion.p>
         </motion.div>
+
+        {/* Error message */}
+        <AnimatePresence>
+          {error && (
+            <div className="mb-8">
+              <ErrorDisplay
+                errorType={error}
+                onDismiss={() => setError(null)}
+              />
+            </div>
+          )}
+        </AnimatePresence>
 
         {/* Input section */}
         {!roastData && !isLoading && (

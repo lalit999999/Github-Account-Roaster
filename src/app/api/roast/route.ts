@@ -1,5 +1,22 @@
 // Fetch GitHub user data
 async function fetchGitHubData(username: string, githubToken?: string) {
+  if (!username || username.trim().length === 0) {
+    throw {
+      status: 400,
+      type: "EMPTY_USERNAME",
+      message: "Username is required",
+    };
+  }
+
+  // Validate username format (GitHub usernames can contain alphanumeric and hyphens)
+  if (!/^[a-zA-Z0-9-_]+$/.test(username)) {
+    throw {
+      status: 400,
+      type: "INVALID_USERNAME",
+      message: "Invalid GitHub username format",
+    };
+  }
+
   const token = githubToken;
 
   const headers: HeadersInit = {
@@ -17,8 +34,29 @@ async function fetchGitHubData(username: string, githubToken?: string) {
       { headers },
     );
 
+    // Handle specific HTTP status codes
+    if (userResponse.status === 404) {
+      throw {
+        status: 404,
+        type: "USER_NOT_FOUND",
+        message: `GitHub user "${username}" not found`,
+      };
+    }
+
+    if (userResponse.status === 403) {
+      throw {
+        status: 429,
+        type: "RATE_LIMIT_EXCEEDED",
+        message: "GitHub API rate limit exceeded. Please try again later.",
+      };
+    }
+
     if (!userResponse.ok) {
-      throw new Error(`GitHub user not found: ${username}`);
+      throw {
+        status: userResponse.status,
+        type: "NETWORK_ERROR",
+        message: `GitHub API error: ${userResponse.statusText}`,
+      };
     }
 
     const userData = await userResponse.json();
@@ -28,6 +66,15 @@ async function fetchGitHubData(username: string, githubToken?: string) {
       `https://api.github.com/users/${username}/repos?per_page=100&sort=updated`,
       { headers },
     );
+
+    if (!reposResponse.ok) {
+      throw {
+        status: reposResponse.status,
+        type: "NETWORK_ERROR",
+        message: "Failed to fetch user repositories",
+      };
+    }
+
     const repos = await reposResponse.json();
 
     return {
@@ -42,15 +89,29 @@ async function fetchGitHubData(username: string, githubToken?: string) {
         location: userData.location,
       },
     };
-  } catch (error) {
-    throw new Error(`Failed to fetch GitHub data: ${error}`);
+  } catch (error: any) {
+    // Re-throw our custom errors
+    if (error.status && error.type) {
+      throw error;
+    }
+    // Network errors
+    throw {
+      status: 503,
+      type: "NETWORK_ERROR",
+      message: "Failed to fetch GitHub data. Please check your internet connection.",
+      details: error?.message,
+    };
   }
 }
 
 // Send data to AI for roasting
 async function generateRoast(gitHubData: any, aiApiKey: string) {
   if (!aiApiKey) {
-    throw new Error("AI_API_KEY is not configured");
+    throw {
+      status: 500,
+      type: "AI_API_ERROR",
+      message: "AI API key is not configured",
+    };
   }
 
   const prompt = `Roast this GitHub developer with 3-5 funny bullet points. Be playful and humorous, not mean-spirited.
@@ -104,14 +165,27 @@ Generate 3-5 funny, clever roast bullet points about this developer's GitHub pro
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(`AI API error: ${error.error?.message}`);
+      const errorData = await response.json();
+      throw {
+        status: response.status,
+        type: "AI_API_ERROR",
+        message: errorData.error?.message || "Failed to generate roast",
+      };
     }
 
     const data = await response.json();
     return data.choices[0].message.content;
-  } catch (error) {
-    throw new Error(`Failed to generate roast: ${error}`);
+  } catch (error: any) {
+    // Re-throw our custom errors
+    if (error.status && error.type) {
+      throw error;
+    }
+    throw {
+      status: 500,
+      type: "AI_API_ERROR",
+      message: "Failed to generate roast",
+      details: error?.message,
+    };
   }
 }
 
@@ -120,42 +194,59 @@ export async function generateGitHubRoast(
   username: string,
   aiApiKey: string,
   githubToken?: string,
-) {
-  if (!username) {
-    throw new Error("Username is required");
+): Promise<{
+  username: string;
+  score: number;
+  roasts: string[];
+  error?: { type: string; message: string; details?: string };
+  status?: number;
+}> {
+  try {
+    // Fetch GitHub data
+    const gitHubData = await fetchGitHubData(username, githubToken);
+
+    // Generate roast using AI
+    const roastText = await generateRoast(gitHubData, aiApiKey);
+
+    // Parse roast into bullet points
+    const roasts = roastText
+      .split("\n")
+      .filter((line: string) => line.trim().length > 0)
+      .map((line: string) => line.replace(/^[-•*]\s+/, "").trim())
+      .filter((line: string) => line.length > 0);
+
+    // Calculate engagement score (0-100)
+    const totalStars = gitHubData.repos.reduce(
+      (sum: number, repo: any) => sum + repo.stargazers_count,
+      0,
+    );
+    const score = Math.min(
+      100,
+      Math.round(
+        (gitHubData.stats.followers * 2 +
+          totalStars +
+          gitHubData.stats.publicRepos * 0.5) /
+          2,
+      ),
+    );
+
+    return {
+      username: gitHubData.profile.login,
+      score: score,
+      roasts: roasts,
+    };
+  } catch (error: any) {
+    // Return structured error response
+    return {
+      username: username,
+      score: 0,
+      roasts: [],
+      error: {
+        type: error.type || "UNKNOWN_ERROR",
+        message: error.message || "Failed to generate roast",
+        details: error.details,
+      },
+      status: error.status || 500,
+    };
   }
-
-  // Fetch GitHub data
-  const gitHubData = await fetchGitHubData(username, githubToken);
-
-  // Generate roast using AI
-  const roastText = await generateRoast(gitHubData, aiApiKey);
-
-  // Parse roast into bullet points
-  const roasts = roastText
-    .split("\n")
-    .filter((line: string) => line.trim().length > 0)
-    .map((line: string) => line.replace(/^[-•*]\s+/, "").trim())
-    .filter((line: string) => line.length > 0);
-
-  // Calculate engagement score (0-100)
-  const totalStars = gitHubData.repos.reduce(
-    (sum: number, repo: any) => sum + repo.stargazers_count,
-    0,
-  );
-  const score = Math.min(
-    100,
-    Math.round(
-      (gitHubData.stats.followers * 2 +
-        totalStars +
-        gitHubData.stats.publicRepos * 0.5) /
-        2,
-    ),
-  );
-
-  return {
-    username: gitHubData.profile.login,
-    score: score,
-    roasts: roasts,
-  };
 }
