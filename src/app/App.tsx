@@ -83,43 +83,37 @@ export default function App() {
         return;
       }
 
-      // For now, using mock data since we're in a Vite env without backend
-      // In production, you would call your actual API here
-      const mockData = generateMockRoast(username);
-      setRoastData(mockData);
+      // ✅ SECURE: Call backend API (not external APIs directly)
+      // API keys stay on the server - frontend never sees them
+      const API_URL =
+        (import.meta as any).env.VITE_API_URL || "http://localhost:5000";
 
-      // Example of how to call the API if you had a proper backend:
-      /*
-      const res = await fetch("/api/roast", {
+      const res = await fetch(`${API_URL}/api/roast`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ 
-          username,
-          aiApiKey: import.meta.env.VITE_AI_API_KEY,
-          githubToken: import.meta.env.VITE_GITHUB_TOKEN,
-        }),
+        body: JSON.stringify({ username: username.trim() }),
       });
-
-      if (!res.ok) {
-        const errorData = await res.json();
-        const errorType = errorData.error?.type || "UNKNOWN_ERROR";
-        setError(errorType as ErrorType);
-        setIsLoading(false);
-        return;
-      }
 
       const data = await res.json();
 
-      // Handle error responses
+      // Handle error responses from backend
       if (data.error) {
-        setError(data.error.type as ErrorType);
+        const errorType = (data.error.type || "UNKNOWN_ERROR") as ErrorType;
+        setError(errorType);
         setIsLoading(false);
         return;
       }
 
-      // Transform API response to match RoastData format
+      // API call failed
+      if (!res.ok) {
+        setError(ErrorType.UNKNOWN_ERROR);
+        setIsLoading(false);
+        return;
+      }
+
+      // Success: Transform API response to match RoastData format
       setRoastData({
         username: data.username,
         avatar: `https://github.com/${data.username}.png`,
@@ -127,7 +121,6 @@ export default function App() {
         roasts: data.roasts,
         category: data.roasts.length > 0 ? "GitHub Developer" : "Unknown",
       });
-      */
     } catch (error: any) {
       console.error("Error:", error);
       // Network or other errors
