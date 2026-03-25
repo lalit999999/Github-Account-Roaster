@@ -87,6 +87,8 @@ export async function fetchGitHubData(username) {
         }
 
         const userData = await userResponse.json();
+        console.log(userData);
+
         console.log(`[fetchGitHubData] Successfully fetched user data for: ${userData.login}`);
 
         // Get user repos
