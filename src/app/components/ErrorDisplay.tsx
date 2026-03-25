@@ -8,7 +8,8 @@ interface ErrorDisplayProps {
 }
 
 export function ErrorDisplay({ errorType, onDismiss }: ErrorDisplayProps) {
-  const error = ERROR_MESSAGES[errorType];
+  const error =
+    ERROR_MESSAGES[errorType] || ERROR_MESSAGES[ErrorType.UNKNOWN_ERROR];
 
   return (
     <motion.div

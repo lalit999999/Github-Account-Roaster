@@ -86,7 +86,7 @@ export default function App() {
       // ✅ SECURE: Call backend API (not external APIs directly)
       // API keys stay on the server - frontend never sees them
       const API_URL =
-        (import.meta as any).env.VITE_API_URL || "http://localhost:4000";
+        (import.meta as any).env.VITE_API_URL || "http://localhost:4001";
 
       const res = await fetch(`${API_URL}/api/roast`, {
         method: "POST",
@@ -100,7 +100,22 @@ export default function App() {
 
       // Handle error responses from backend
       if (data.error) {
-        const errorType = (data.error.type || "UNKNOWN_ERROR") as ErrorType;
+        // Map backend error types to frontend error types
+        let errorType = data.error.type as ErrorType;
+
+        // Map unknown backend error types to frontend types
+        const errorTypeMapping: Record<string, ErrorType> = {
+          INVALID_INPUT: ErrorType.INVALID_USERNAME,
+          NOT_FOUND: ErrorType.UNKNOWN_ERROR,
+          INTERNAL_SERVER_ERROR: ErrorType.UNKNOWN_ERROR,
+        };
+
+        if (errorTypeMapping[errorType]) {
+          errorType = errorTypeMapping[errorType];
+        } else if (!Object.values(ErrorType).includes(errorType)) {
+          errorType = ErrorType.UNKNOWN_ERROR;
+        }
+
         setError(errorType);
         setIsLoading(false);
         return;
