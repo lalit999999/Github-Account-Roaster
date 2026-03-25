@@ -1,4 +1,4 @@
-import { toPng } from "html-to-image";
+import html2canvas from "html2canvas";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4001";
 
@@ -31,7 +31,7 @@ async function proxifyImages(element: HTMLElement): Promise<void> {
             }
           } catch (error) {
             console.warn(`Error proxifying image ${src}:`, error);
-            // Keep original URL if proxification fails, toPng will handle it
+            // Keep original URL if proxification fails, html2canvas will handle it
           }
         })(),
       );
@@ -52,39 +52,114 @@ export async function captureRoastCard(
       return null;
     }
 
-    // Create a temporary container for the screenshot
-    const container = document.createElement("div");
-    container.style.position = "fixed";
-    container.style.left = "-9999px";
-    container.style.top = "-9999px";
-    container.style.backgroundColor = "#0f172a"; // Dark background
-    container.style.padding = "20px";
-    container.style.borderRadius = "24px";
+    // Create a wrapper with dark background to match the roast card design
+    const wrapper = document.createElement("div");
+    wrapper.style.position = "fixed";
+    wrapper.style.left = "-9999px";
+    wrapper.style.top = "-9999px";
+    wrapper.style.zIndex = "-9999";
+    wrapper.style.backgroundColor = "#0f172a";
+    wrapper.style.padding = "40px";
+    wrapper.style.display = "flex";
+    wrapper.style.alignItems = "center";
+    wrapper.style.justifyContent = "center";
 
     // Clone the element
+    console.log("Cloning roast card element...");
     const clone = element.cloneNode(true) as HTMLElement;
-    container.appendChild(clone);
-    document.body.appendChild(container);
+
+    // Remove problematic Tailwind classes that use oklch colors
+    const removeOklchClasses = (el: HTMLElement) => {
+      const classList = Array.from(el.classList);
+      classList.forEach((cls) => {
+        // Remove classes that might contain oklch or other unsupported colors
+        if (
+          cls.includes("gradient") ||
+          cls.includes("from-") ||
+          cls.includes("to-") ||
+          cls.includes("via-")
+        ) {
+          el.classList.remove(cls);
+        }
+      });
+
+      // Recursively process children
+      Array.from(el.children).forEach((child) => {
+        removeOklchClasses(child as HTMLElement);
+      });
+    };
+
+    removeOklchClasses(clone);
+
+    // Add fallback background gradient using standard CSS
+    const findMainCard = (el: HTMLElement): HTMLElement | null => {
+      if (el.classList.contains("backdrop-blur-lg")) return el;
+      for (let child of el.children) {
+        const result = findMainCard(child as HTMLElement);
+        if (result) return result;
+      }
+      return null;
+    };
+
+    const mainCard = findMainCard(clone);
+    if (mainCard) {
+      mainCard.style.background =
+        "linear-gradient(135deg, rgba(88, 28, 135, 0.6) 0%, rgba(30, 58, 138, 0.6) 100%)";
+    }
+
+    wrapper.appendChild(clone);
+    document.body.appendChild(wrapper);
+
+    // Wait for DOM to render
+    await new Promise((resolve) => setTimeout(resolve, 200));
 
     // Proxify external images to bypass CORS restrictions
     console.log("Proxifying external images...");
     await proxifyImages(clone);
 
-    // Convert to PNG
-    console.log("Converting to PNG...");
-    const dataUrl = await toPng(container, {
-      cacheBust: true,
-      pixelRatio: 2,
+    // Wait for images to load
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    // Convert to canvas using html2canvas
+    console.log("Converting to canvas...");
+    const canvas = await html2canvas(wrapper, {
       backgroundColor: "#0f172a",
+      scale: 2,
+      logging: false,
+      useCORS: true,
+      allowTaint: true,
+      onclone: (clonedDocument) => {
+        // Remove any remaining problematic elements/styles from the clone
+        const allElements = clonedDocument.querySelectorAll("*");
+        allElements.forEach((el) => {
+          const computed = window.getComputedStyle(el);
+          // If element has unsupported color format, hide it
+          try {
+            const bgColor = computed.backgroundColor;
+            if (bgColor.includes("oklch")) {
+              (el as HTMLElement).style.backgroundColor = "transparent";
+            }
+          } catch (e) {
+            // Ignore errors
+          }
+        });
+      },
     });
 
-    // Convert data URL to Blob
-    const response = await fetch(dataUrl);
-    const blob = await response.blob();
+    // Convert canvas to blob
+    const blob = await new Promise<Blob>((resolve) => {
+      canvas.toBlob((blob) => {
+        if (blob) resolve(blob);
+      }, "image/png");
+    });
+
+    // Convert canvas to data URL for preview
+    const dataUrl = canvas.toDataURL("image/png");
 
     // Clean up
-    document.body.removeChild(container);
+    document.body.removeChild(wrapper);
 
+    console.log(`Screenshot captured successfully (${blob.size} bytes)`);
     return { dataUrl, blob };
   } catch (error) {
     console.error("Error capturing roast card:", error);

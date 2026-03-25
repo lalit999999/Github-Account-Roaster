@@ -31,8 +31,7 @@ app.use(cors({
     origin: [
         process.env.FRONTEND_URL,
         "http://localhost:5173"
-    ]
-    ,
+    ],
     credentials: true,
 }));
 
@@ -47,46 +46,46 @@ app.use(requestIdMiddleware);
 
 // ==================== ROUTES ====================
 
+// Mount API routes
+app.use('/api', roastRoutes);
+
+// ==================== ERROR HANDLERS ====================
+
 /**
- * POST /api/roast
- * Generate a funny roast for a GitHub user
- * 
- * Request: { username: string }
- * Response: { username: string, score: number, roasts: string[] }
+ * 404 Handler - for undefined routes
  */
-app.post('/api/roast', roastLimiter, async (req, res) => {
-    try {
-        const { username } = req.body;
-        console.log(`[${req.id}] [POST /api/roast] Received request for username: ${username}`);
+app.use((req, res) => {
+    console.warn(`[${req.id}] 404 Not Found: ${req.method} ${req.path}`);
+    res.status(404).json({
+        error: {
+            type: 'NOT_FOUND',
+            message: `Endpoint ${req.method} ${req.path} not found`,
+        },
+    });
+});
 
-        // Validate input
-        if (!username || typeof username !== 'string') {
-            console.warn(`[${req.id}] [POST /api/roast] Invalid input - missing or invalid username`);
-            return res.status(400).json({
-                error: {
-                    type: 'INVALID_INPUT',
-                    message: 'Username is required and must be a string',
-                },
-            });
-        }
+/**
+ * Global error handler
+ */
+app.use((err, req, res, next) => {
+    console.error(`[${req.id}] Global error handler:`, err);
+    res.status(500).json({
+        error: {
+            type: 'INTERNAL_SERVER_ERROR',
+            message: 'Internal server error',
+            ...(process.env.NODE_ENV === 'development' && { details: err.message }),
+        },
+    });
+});
 
-        // Generate roast using secure backend APIs
-        console.log(`[${req.id}] [POST /api/roast] Calling generateGitHubRoast...`);
-        const result = await generateGitHubRoast(username.trim(), req.id);
+// ==================== SERVER STARTUP ====================
 
-        // If there was an error, return it with appropriate status
-        if (result.error) {
-            console.warn(`[${req.id}] [POST /api/roast] Error response:`, result.error);
-            const statusCode = result.status || 500;
-            return res.status(statusCode).json({
- / Mount API routes
-app.use('/api', roastRoutes
 const server = app.listen(PORT, () => {
-                console.log(`
+    console.log(`
 ╔════════════════════════════════════════════════════╗
 ║   GitHub Roast API Server                          ║
 ║   Version: 2.0 (Production-Ready)                  ║
-║   Port: ${PORT}                                           ║
+║   Port: ${PORT}                                    ║
 ║   Environment: ${(process.env.NODE_ENV || 'development').padEnd(20)}   ║
 ╚════════════════════════════════════════════════════╝
 
@@ -109,6 +108,7 @@ Security Features:
 Available Endpoints:
   POST   /api/roast       - Generate roast for GitHub user
   GET    /api/health      - Health check
+  GET    /api/proxy-image - Proxy GitHub images
 
 Documentation:
   • Each request gets a unique X-Request-ID header for tracing
@@ -117,21 +117,21 @@ Documentation:
 
 Debug Mode: ${process.env.NODE_ENV === 'development' ? 'ON (detailed error messages)' : 'OFF'}
     `);
-            });
+});
 
-            // Graceful shutdown
-            process.on('SIGTERM', () => {
-                console.log('SIGTERM received, shutting down gracefully...');
-                server.close(() => {
-                    console.log('Server closed');
-                    process.exit(0);
-                });
-            });
+// Graceful shutdown
+process.on('SIGTERM', () => {
+    console.log('SIGTERM received, shutting down gracefully...');
+    server.close(() => {
+        console.log('Server closed');
+        process.exit(0);
+    });
+});
 
-            process.on('SIGINT', () => {
-                console.log('SIGINT received, shutting down gracefully...');
-                server.close(() => {
-                    console.log('Server closed');
-                    process.exit(0);
-                });
-            });
+process.on('SIGINT', () => {
+    console.log('SIGINT received, shutting down gracefully...');
+    server.close(() => {
+        console.log('Server closed');
+        process.exit(0);
+    });
+});

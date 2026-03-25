@@ -1,24 +1,25 @@
 import { motion } from "motion/react";
 import { Flame, Code2, Sparkles } from "lucide-react";
+import {
+  usePreferredMotion,
+  getAnimationDuration,
+} from "../hooks/usePreferredMotion";
 
-const loadingMessages = [
-  "Analyzing repositories...",
-  "Finding abandoned projects...",
-  "Generating roast...",
-  "Reading your commit history...",
-  "Calculating shame points...",
-];
+interface LoadingSkeletonProps {
+  message: string;
+}
 
-export function LoadingSkeleton() {
-  const randomMessage =
-    loadingMessages[Math.floor(Math.random() * loadingMessages.length)];
+export function LoadingSkeleton({ message }: LoadingSkeletonProps) {
+  const motionPreference = usePreferredMotion();
+  const animationDuration = getAnimationDuration(motionPreference, 0.3, 0.01);
+  const rotateDuration = getAnimationDuration(motionPreference, 2, 0.5);
 
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.9 }}
-      transition={{ duration: 0.3 }}
+      transition={{ duration: animationDuration }}
       className="w-full max-w-2xl mx-auto"
     >
       <div className="bg-gradient-to-br from-purple-900/40 to-blue-900/40 backdrop-blur-lg rounded-3xl p-8 border border-white/20 shadow-2xl">
@@ -44,24 +45,35 @@ export function LoadingSkeleton() {
           <div className="flex items-center justify-center gap-3 mb-4">
             <motion.div
               animate={{ rotate: 360 }}
-              transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+              transition={{
+                duration: rotateDuration,
+                repeat: Infinity,
+                ease: "linear",
+              }}
             >
               <Code2 className="text-purple-400" size={32} />
             </motion.div>
             <motion.div
               animate={{ scale: [1, 1.2, 1] }}
-              transition={{ duration: 1.5, repeat: Infinity }}
+              transition={{
+                duration: getAnimationDuration(motionPreference, 1.5, 0.5),
+                repeat: Infinity,
+              }}
             >
               <Flame className="text-orange-400" size={32} />
             </motion.div>
             <motion.div
               animate={{ rotate: -360 }}
-              transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+              transition={{
+                duration: rotateDuration,
+                repeat: Infinity,
+                ease: "linear",
+              }}
             >
               <Sparkles className="text-blue-400" size={32} />
             </motion.div>
           </div>
-          <p className="text-gray-300 text-lg font-medium">{randomMessage}</p>
+          <p className="text-gray-300 text-lg font-medium">{message}</p>
         </div>
 
         {/* Shimmer effect overlay */}

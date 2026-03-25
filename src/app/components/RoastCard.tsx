@@ -1,5 +1,7 @@
-import { motion } from 'motion/react';
-import { Flame, Github } from 'lucide-react';
+import { motion } from "motion/react";
+import { Flame, Github } from "lucide-react";
+import { getGitHubAvatarUrl } from "../config";
+import { AvatarWithFallback } from "./AvatarWithFallback";
 
 export interface RoastData {
   username: string;
@@ -25,9 +27,12 @@ export function RoastCard({ data }: RoastCardProps) {
       <div className="relative bg-gradient-to-br from-purple-900/60 to-blue-900/60 backdrop-blur-lg rounded-3xl p-8 md:p-12 border border-white/30 shadow-2xl overflow-hidden">
         {/* Background pattern */}
         <div className="absolute inset-0 opacity-5">
-          <div className="absolute inset-0" style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-          }} />
+          <div
+            className="absolute inset-0"
+            style={{
+              backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+            }}
+          />
         </div>
 
         {/* Glow effect */}
@@ -38,13 +43,11 @@ export function RoastCard({ data }: RoastCardProps) {
         <div className="relative z-10">
           {/* Header */}
           <div className="flex flex-col md:flex-row items-center md:items-start gap-6 mb-8">
-            <motion.img
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
-              src={data.avatar}
-              alt={data.username}
-              className="w-24 h-24 md:w-28 md:h-28 rounded-full border-4 border-white/40 shadow-lg"
+            <AvatarWithFallback
+              username={data.username}
+              avatarUrl={data.avatar}
+              size="lg"
+              className="border-4 border-white/40 shadow-lg"
             />
             <div className="flex-1 text-center md:text-left">
               <h3 className="text-2xl md:text-3xl font-bold text-white mb-2">
@@ -93,7 +96,8 @@ export function RoastCard({ data }: RoastCardProps) {
           >
             <div className="bg-white/10 backdrop-blur-sm px-6 py-3 rounded-full border border-white/20">
               <span className="text-gray-300 font-medium">
-                Category: <span className="text-white font-bold">{data.category}</span>
+                Category:{" "}
+                <span className="text-white font-bold">{data.category}</span>
               </span>
             </div>
 

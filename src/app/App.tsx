@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useReducer } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { UsernameInput } from "./components/UsernameInput";
 import { LoadingSkeleton } from "./components/LoadingSkeleton";
@@ -7,6 +7,24 @@ import { ErrorDisplay } from "./components/ErrorDisplay";
 import { ShareButtons } from "./components/ShareButtons";
 import { Sparkles } from "lucide-react";
 import { ErrorType, ERROR_MESSAGES } from "./utils/errors";
+import { isUsernameFormatValid, isUsernameNotEmpty } from "./utils/validation";
+import {
+  buildApiUrl,
+  API_ENDPOINTS,
+  getGitHubAvatarUrl,
+  FETCH_TIMEOUT,
+} from "./config";
+import {
+  validateRoastResponse,
+  safeValidateApiError,
+  type RoastResponse,
+} from "./api/schemas";
+import { processBackendError } from "./utils/errorMapping";
+import {
+  appReducer,
+  INITIAL_APP_STATE,
+  type AppState,
+} from "./hooks/useAppState";
 
 // Mock roast data generator
 const generateMockRoast = (username: string): RoastData => {
@@ -60,99 +78,108 @@ const generateMockRoast = (username: string): RoastData => {
 };
 
 export default function App() {
-  const [isLoading, setIsLoading] = useState(false);
-  const [roastData, setRoastData] = useState<RoastData | null>(null);
-  const [error, setError] = useState<ErrorType | null>(null);
+  const [state, dispatch] = useReducer(appReducer, INITIAL_APP_STATE);
 
   const handleRoast = async (username: string) => {
-    setIsLoading(true);
-    setRoastData(null);
-    setError(null);
+    dispatch({ type: "START_LOADING", payload: username });
+
+    // Create abort controller for request timeout
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => {
+      abortController.abort();
+    }, FETCH_TIMEOUT);
 
     try {
       // Client-side validation
-      if (!username || username.trim().length === 0) {
-        setError(ErrorType.EMPTY_USERNAME);
-        setIsLoading(false);
+      if (!isUsernameNotEmpty(username)) {
+        dispatch({ type: "SET_ERROR", payload: ErrorType.EMPTY_USERNAME });
         return;
       }
 
-      if (!/^[a-zA-Z0-9-_]+$/.test(username)) {
-        setError(ErrorType.INVALID_USERNAME);
-        setIsLoading(false);
+      if (!isUsernameFormatValid(username)) {
+        dispatch({ type: "SET_ERROR", payload: ErrorType.INVALID_USERNAME });
         return;
       }
 
       // ✅ SECURE: Call backend API (not external APIs directly)
       // API keys stay on the server - frontend never sees them
-      const API_URL =
-        (import.meta as any).env.VITE_API_URL || "http://localhost:4001";
-
-      const res = await fetch(`${API_URL}/api/roast`, {
+      const res = await fetch(buildApiUrl(API_ENDPOINTS.roast), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ username }),
+        signal: abortController.signal,
       });
 
       const data = await res.json();
 
-      // Handle error responses from backend
-      if (data.error) {
-        // Map backend error types to frontend error types
-        let errorType = data.error.type as ErrorType;
-
-        // Map unknown backend error types to frontend types
-        const errorTypeMapping: Record<string, ErrorType> = {
-          INVALID_INPUT: ErrorType.INVALID_USERNAME,
-          NOT_FOUND: ErrorType.UNKNOWN_ERROR,
-          INTERNAL_SERVER_ERROR: ErrorType.UNKNOWN_ERROR,
-        };
-
-        if (errorTypeMapping[errorType]) {
-          errorType = errorTypeMapping[errorType];
-        } else if (!Object.values(ErrorType).includes(errorType)) {
-          errorType = ErrorType.UNKNOWN_ERROR;
-        }
-
-        setError(errorType);
-        setIsLoading(false);
+      // Check for error response first
+      const errorResponse = safeValidateApiError(data);
+      if (errorResponse) {
+        // Use centralized error mapping to convert backend error to frontend error
+        const errorType = processBackendError(errorResponse.error.type);
+        dispatch({ type: "SET_ERROR", payload: errorType });
         return;
       }
 
-      // API call failed
+      // API call failed (non-200 status)
       if (!res.ok) {
-        setError(ErrorType.UNKNOWN_ERROR);
-        setIsLoading(false);
+        dispatch({ type: "SET_ERROR", payload: ErrorType.UNKNOWN_ERROR });
         return;
       }
 
-      // Success: Transform API response to match RoastData format
-      setRoastData({
-        username: data.username,
-        avatar: `https://github.com/${data.username}.png`,
-        score: data.score,
-        roasts: data.roasts,
-        category: data.roasts.length > 0 ? "GitHub Developer" : "Unknown",
+      // Validate success response with schema
+      let roastData: RoastResponse;
+      try {
+        roastData = validateRoastResponse(data);
+      } catch (validationError) {
+        console.error("Response validation failed:", validationError);
+        dispatch({ type: "SET_ERROR", payload: ErrorType.UNKNOWN_ERROR });
+        return;
+      }
+
+      // Success: Transform validated API response to match RoastData format
+      dispatch({
+        type: "SET_SUCCESS",
+        payload: {
+          username: roastData.username,
+          avatar: getGitHubAvatarUrl(roastData.username),
+          score: roastData.score,
+          roasts: roastData.roasts,
+          category:
+            roastData.roasts.length > 0 ? "GitHub Developer" : "Unknown",
+        },
       });
     } catch (error: any) {
       console.error("Error:", error);
-      // Network or other errors
-      if (error.message?.includes("fetch")) {
-        setError(ErrorType.NETWORK_ERROR);
+      // Network or timeout errors
+      if (error instanceof Error && error.name === "AbortError") {
+        console.warn(
+          "Request timeout - API took longer than",
+          FETCH_TIMEOUT,
+          "ms",
+        );
+        dispatch({ type: "SET_ERROR", payload: ErrorType.NETWORK_ERROR });
+      } else if (error.message?.includes("fetch")) {
+        dispatch({ type: "SET_ERROR", payload: ErrorType.NETWORK_ERROR });
       } else {
-        setError(ErrorType.UNKNOWN_ERROR);
+        dispatch({ type: "SET_ERROR", payload: ErrorType.UNKNOWN_ERROR });
       }
     } finally {
-      setIsLoading(false);
+      clearTimeout(timeoutId);
+      abortController.abort();
     }
   };
 
   const handleReset = () => {
-    setRoastData(null);
-    setIsLoading(false);
-    setError(null);
+    dispatch({ type: "RESET" });
+  };
+
+  const handleRetry = () => {
+    if (state.failedUsername) {
+      handleRoast(state.failedUsername);
+    }
   };
 
   return (
@@ -244,29 +271,31 @@ export default function App() {
 
         {/* Error message */}
         <AnimatePresence>
-          {error && (
+          {state.error && (
             <div className="mb-8">
               <ErrorDisplay
-                errorType={error}
-                onDismiss={() => setError(null)}
+                errorType={state.error}
+                onDismiss={() => dispatch({ type: "RESET" })}
+                onRetry={handleRetry}
+                canRetry={!!state.failedUsername}
               />
             </div>
           )}
         </AnimatePresence>
 
         {/* Input section */}
-        {!roastData && !isLoading && (
-          <UsernameInput onRoast={handleRoast} isLoading={isLoading} />
+        {!state.roastData && !state.isLoading && (
+          <UsernameInput onRoast={handleRoast} isLoading={state.isLoading} />
         )}
 
         {/* Loading state */}
-        {isLoading && <LoadingSkeleton />}
+        {state.isLoading && <LoadingSkeleton message={state.loadingMessage} />}
 
         {/* Roast result */}
-        {roastData && (
+        {state.roastData && (
           <>
-            <RoastCard data={roastData} />
-            <ShareButtons username={roastData.username} />
+            <RoastCard data={state.roastData} />
+            <ShareButtons username={state.roastData.username} />
 
             {/* Try again button */}
             <motion.div
