@@ -1,6 +1,7 @@
 import html2canvas from "html2canvas";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4001";
+const API_URL =
+  (import.meta.env.VITE_API_URL as string) || "http://localhost:4001";
 
 async function proxifyImages(element: HTMLElement): Promise<void> {
   const images = element.querySelectorAll("img");

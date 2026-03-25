@@ -4,7 +4,7 @@ import fetch from 'node-fetch';
 
 const getConfig = () => ({
     AI_API_KEY: process.env.AI_API_KEY || '',
-    GEMINI_MODEL: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+    OPENAI_MODEL: process.env.OPENAI_MODEL || 'gpt-3.5-turbo',
     FETCH_TIMEOUT: 10000,
     MAX_ROAST_LENGTH: 2000,
     TEST_MODE: process.env.TEST_MODE === 'true', // Mock AI responses for testing
@@ -157,7 +157,7 @@ function generateMockRoast(gitHubData) {
 }
 
 /**
- * Generate roast using Google Gemini API
+ * Generate roast using OpenAI API
  * API key is never exposed to frontend
  */
 export async function generateRoast(gitHubData, requestId = 'unknown') {
@@ -186,6 +186,16 @@ export async function generateRoast(gitHubData, requestId = 'unknown') {
 
     const prompt = `Roast this GitHub developer with 3-5 funny bullet points. Be playful and humorous, not mean-spirited. Make it witty and clever.
 
+IMPORTANT: Vary the grammar and structure of EACH roast point. Use different sentence patterns:
+- Some as statements: "Your code is..."
+- Some as questions: "Is it possible that..."
+- Some as observations: "I've noticed..."
+- Some as comparisons: "Your GitHub profile looks like..."
+- Some as hyperboles: "The amount of..."
+- Some using sarcasm: "Well, isn't it impressive that..."
+
+Make sure NO two points use the same grammatical structure or starting pattern.
+
 Profile:
 - Username: ${gitHubData.profile.login}
 - Public repos: ${gitHubData.stats.publicRepos}
@@ -204,48 +214,43 @@ ${gitHubData.repos
             )
             .join('\n')}
 
-Generate 3-5 funny, clever roast bullet points about this developer. Each point should be a complete sentence or short phrase starting with a bullet point (-).`;
+Generate 3-5 funny, clever roast bullet points about this developer. Each point should start with a bullet point (-) and use COMPLETELY DIFFERENT grammar/sentence structure from the others.`;
 
     try {
-        console.log(`${logPrefix} Calling Gemini API (model: ${CONFIG.GEMINI_MODEL})...`);
+        console.log(`${logPrefix} Calling OpenAI API (model: ${CONFIG.OPENAI_MODEL})...`);
         const response = await fetchWithTimeout(
-            `https://generativelanguage.googleapis.com/v1/models/${CONFIG.GEMINI_MODEL}:generateContent?key=${CONFIG.AI_API_KEY}`,
+            `https://api.openai.com/v1/chat/completions`,
             {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${CONFIG.AI_API_KEY}`,
                 },
                 body: JSON.stringify({
-                    contents: [
+                    model: CONFIG.OPENAI_MODEL,
+                    messages: [
                         {
-                            parts: [
-                                {
-                                    text: `You are a funny, clever comedian roasting GitHub developers. Keep it playful, witty, and entertaining. Never be mean-spirited or insulting.\n\n${prompt}`,
-                                },
-                            ],
+                            role: 'system',
+                            content: 'You are a funny, clever comedian roasting GitHub developers. Keep it playful, witty, and entertaining. Never be mean-spirited or insulting.',
+                        },
+                        {
+                            role: 'user',
+                            content: prompt,
                         },
                     ],
-                    generationConfig: {
-                        temperature: 0.8,
-                        maxOutputTokens: 300,
-                        topP: 0.95,
-                    },
-                    safetySettings: [
-                        {
-                            category: 'HARM_CATEGORY_HARASSMENT',
-                            threshold: 'BLOCK_MEDIUM_AND_ABOVE',
-                        },
-                    ],
+                    temperature: 0.8,
+                    max_tokens: 300,
+                    top_p: 0.95,
                 }),
             },
             CONFIG.FETCH_TIMEOUT
         );
 
-        console.log(`${logPrefix} Gemini API response status: ${response.status}`);
+        console.log(`${logPrefix} OpenAI API response status: ${response.status}`);
 
         if (!response.ok) {
             const errorData = await response.json();
-            console.error(`${logPrefix} Gemini API error:`, errorData);
+            console.error(`${logPrefix} OpenAI API error:`, errorData);
 
             if (response.status === 429) {
                 throw {
@@ -271,10 +276,10 @@ Generate 3-5 funny, clever roast bullet points about this developer. Each point 
         }
 
         const data = await response.json();
-        console.log(`${logPrefix} Gemini response received, parsing...`);
-        console.log(`${logPrefix} Full Gemini API response:`, JSON.stringify(data).substring(0, 500));
+        console.log(`${logPrefix} OpenAI response received, parsing...`);
+        console.log(`${logPrefix} Full OpenAI API response:`, JSON.stringify(data).substring(0, 500));
 
-        if (!data.candidates?.[0]?.content?.parts?.[0]?.text) {
+        if (!data.choices?.[0]?.message?.content) {
             console.error(`${logPrefix} Invalid response structure:`, JSON.stringify(data).substring(0, 200));
             throw {
                 status: 500,
@@ -283,7 +288,7 @@ Generate 3-5 funny, clever roast bullet points about this developer. Each point 
             };
         }
 
-        let roastText = data.candidates[0].content.parts[0].text.trim();
+        let roastText = data.choices[0].message.content.trim();
         console.log(`${logPrefix} Generated roast length: ${roastText.length} chars`);
         console.log(`${logPrefix} Roast preview: ${roastText.substring(0, 150)}`);
 
