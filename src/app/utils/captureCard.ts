@@ -1,5 +1,47 @@
 import { toPng } from "html-to-image";
 
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4001";
+
+async function proxifyImages(element: HTMLElement): Promise<void> {
+  const images = element.querySelectorAll("img");
+  const imagePromises: Promise<void>[] = [];
+
+  images.forEach((img) => {
+    const src = img.getAttribute("src");
+    // Only proxy external images (not data URLs, not relative paths)
+    if (
+      src &&
+      !src.startsWith("data:") &&
+      (src.startsWith("http") || src.startsWith("https"))
+    ) {
+      imagePromises.push(
+        (async () => {
+          try {
+            const response = await fetch(
+              `${API_URL}/api/proxy-image?url=${encodeURIComponent(src)}`,
+            );
+            if (response.ok) {
+              const data = await response.json();
+              img.setAttribute("src", data.dataUrl);
+              console.log(`Proxified image: ${src}`);
+            } else {
+              console.warn(
+                `Failed to proxify image: ${src} (status: ${response.status})`,
+              );
+            }
+          } catch (error) {
+            console.warn(`Error proxifying image ${src}:`, error);
+            // Keep original URL if proxification fails, toPng will handle it
+          }
+        })(),
+      );
+    }
+  });
+
+  // Wait for all images to be proxified
+  await Promise.all(imagePromises);
+}
+
 export async function captureRoastCard(
   elementId: string = "roast-card",
 ): Promise<{ dataUrl: string; blob: Blob } | null> {
@@ -24,7 +66,12 @@ export async function captureRoastCard(
     container.appendChild(clone);
     document.body.appendChild(container);
 
+    // Proxify external images to bypass CORS restrictions
+    console.log("Proxifying external images...");
+    await proxifyImages(clone);
+
     // Convert to PNG
+    console.log("Converting to PNG...");
     const dataUrl = await toPng(container, {
       cacheBust: true,
       pixelRatio: 2,

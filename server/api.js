@@ -412,6 +412,7 @@ Generate 3-5 funny, clever roast bullet points about this developer. Each point 
 
         let roastText = data.candidates[0].content.parts[0].text.trim();
         console.log(`${logPrefix} Generated roast length: ${roastText.length} chars`);
+        console.log(`${logPrefix} Roast preview: ${roastText.substring(0, 150)}`);
 
         // Cap response length
         if (roastText.length > CONFIG.MAX_ROAST_LENGTH) {
