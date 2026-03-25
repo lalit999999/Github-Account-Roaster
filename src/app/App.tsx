@@ -86,14 +86,14 @@ export default function App() {
       // ✅ SECURE: Call backend API (not external APIs directly)
       // API keys stay on the server - frontend never sees them
       const API_URL =
-        (import.meta as any).env.VITE_API_URL || "http://localhost:5000";
+        (import.meta as any).env.VITE_API_URL || "http://localhost:4000";
 
       const res = await fetch(`${API_URL}/api/roast`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ username: username.trim() }),
+        body: JSON.stringify({ username }),
       });
 
       const data = await res.json();

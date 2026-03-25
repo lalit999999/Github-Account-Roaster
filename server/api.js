@@ -5,7 +5,10 @@ import fetch from 'node-fetch';
  * Only called from backend - API key never exposed to frontend
  */
 export async function fetchGitHubData(username) {
+    console.log(`[fetchGitHubData] Starting for username: ${username}`);
+
     if (!username || username.trim().length === 0) {
+        console.error(`[fetchGitHubData] Empty username provided`);
         throw {
             status: 400,
             type: 'EMPTY_USERNAME',
@@ -15,6 +18,7 @@ export async function fetchGitHubData(username) {
 
     // Validate username format
     if (!/^[a-zA-Z0-9-_]+$/.test(username)) {
+        console.error(`[fetchGitHubData] Invalid username format: ${username}`);
         throw {
             status: 400,
             type: 'INVALID_USERNAME',
@@ -23,6 +27,7 @@ export async function fetchGitHubData(username) {
     }
 
     const githubToken = process.env.GITHUB_TOKEN;
+    console.log(`[fetchGitHubData] GitHub token configured: ${!!githubToken}`);
 
     const headers = {
         Accept: 'application/vnd.github.v3+json',
@@ -34,13 +39,16 @@ export async function fetchGitHubData(username) {
 
     try {
         // Get user profile
+        console.log(`[fetchGitHubData] Fetching user profile for: ${username}`);
         const userResponse = await fetch(
             `https://api.github.com/users/${username}`,
             { headers }
         );
+        console.log(`[fetchGitHubData] User profile response status: ${userResponse.status}`);
 
         // Handle specific HTTP status codes
         if (userResponse.status === 404) {
+            console.error(`[fetchGitHubData] User not found: ${username}`);
             throw {
                 status: 404,
                 type: 'USER_NOT_FOUND',
@@ -49,9 +57,12 @@ export async function fetchGitHubData(username) {
         }
 
         if (userResponse.status === 403) {
+            console.warn(`[fetchGitHubData] 403 Forbidden for user: ${username}`);
             // Check if it's rate limit
             const rateLimitRemaining = userResponse.headers.get('x-ratelimit-remaining');
+            console.log(`[fetchGitHubData] Rate limit remaining: ${rateLimitRemaining}`);
             if (rateLimitRemaining === '0') {
+                console.error(`[fetchGitHubData] Rate limit exceeded`);
                 throw {
                     status: 429,
                     type: 'RATE_LIMIT_EXCEEDED',
@@ -67,6 +78,7 @@ export async function fetchGitHubData(username) {
         }
 
         if (!userResponse.ok) {
+            console.error(`[fetchGitHubData] GitHub API error: ${userResponse.statusText}`);
             throw {
                 status: userResponse.status,
                 type: 'NETWORK_ERROR',
@@ -75,14 +87,18 @@ export async function fetchGitHubData(username) {
         }
 
         const userData = await userResponse.json();
+        console.log(`[fetchGitHubData] Successfully fetched user data for: ${userData.login}`);
 
         // Get user repos
+        console.log(`[fetchGitHubData] Fetching repositories for: ${username}`);
         const reposResponse = await fetch(
             `https://api.github.com/users/${username}/repos?per_page=100&sort=updated`,
             { headers }
         );
+        console.log(`[fetchGitHubData] Repos response status: ${reposResponse.status}`);
 
         if (!reposResponse.ok) {
+            console.error(`[fetchGitHubData] Failed to fetch repos: ${reposResponse.statusText}`);
             throw {
                 status: reposResponse.status,
                 type: 'NETWORK_ERROR',
@@ -91,6 +107,7 @@ export async function fetchGitHubData(username) {
         }
 
         const repos = await reposResponse.json();
+        console.log(`[fetchGitHubData] Successfully fetched ${repos.length} repositories`);
 
         return {
             profile: userData,
@@ -105,11 +122,13 @@ export async function fetchGitHubData(username) {
             },
         };
     } catch (error) {
+        console.error(`[fetchGitHubData] Error caught:`, error);
         // Re-throw structured errors
         if (error.status && error.type) {
             throw error;
         }
         // Network errors
+        console.error(`[fetchGitHubData] Network error:`, error.message);
         throw {
             status: 503,
             type: 'NETWORK_ERROR',
@@ -124,15 +143,18 @@ export async function fetchGitHubData(username) {
  * API key is never exposed to frontend
  */
 export async function generateRoast(gitHubData) {
+    console.log(`[generateRoast] Starting for user: ${gitHubData.profile.login}`);
     const aiApiKey = process.env.AI_API_KEY;
 
     if (!aiApiKey) {
+        console.error(`[generateRoast] AI API key not configured`);
         throw {
             status: 500,
             type: 'AI_API_ERROR',
             message: 'AI API key is not configured on the server',
         };
     }
+    console.log(`[generateRoast] AI API key is configured`);
 
     const prompt = `Roast this GitHub developer with 3-5 funny bullet points. Be playful and humorous, not mean-spirited.
 
@@ -160,8 +182,9 @@ Location: ${gitHubData.profile.location || 'No location'}
 Generate 3-5 funny, clever roast bullet points about this developer's GitHub profile and coding style.`;
 
     try {
+        console.log(`[generateRoast] Calling Gemini API...`);
         const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${aiApiKey}`,
+            `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${aiApiKey}`,
             {
                 method: 'POST',
                 headers: {
@@ -184,9 +207,12 @@ Generate 3-5 funny, clever roast bullet points about this developer's GitHub pro
                 }),
             }
         );
+        console.log(`[generateRoast] Gemini API response status: ${response.status}`);
 
         if (!response.ok) {
+            console.error(`[generateRoast] Gemini API error status: ${response.status}`);
             const errorData = await response.json();
+            console.error(`[generateRoast] Error details:`, errorData);
             throw {
                 status: response.status,
                 type: 'AI_API_ERROR',
@@ -195,22 +221,29 @@ Generate 3-5 funny, clever roast bullet points about this developer's GitHub pro
         }
 
         const data = await response.json();
+        console.log(`[generateRoast] Gemini response received, parsing candidates...`);
 
         // Google Gemini API response format
         if (data.candidates && data.candidates[0] && data.candidates[0].content) {
-            return data.candidates[0].content.parts[0].text;
+            const roastText = data.candidates[0].content.parts[0].text;
+            console.log(`[generateRoast] Successfully generated roast, length: ${roastText.length}`);
+            return roastText;
         }
 
+        console.error(`[generateRoast] Invalid response structure from Gemini API`);
+        console.error(`[generateRoast] Response data:`, JSON.stringify(data).substring(0, 200));
         throw {
             status: 500,
             type: 'AI_API_ERROR',
             message: 'Invalid response from AI API',
         };
     } catch (error) {
+        console.error(`[generateRoast] Error caught:`, error);
         // Re-throw structured errors
         if (error.status && error.type) {
             throw error;
         }
+        console.error(`[generateRoast] Unstructured error:`, error.message);
         throw {
             status: 500,
             type: 'AI_API_ERROR',
@@ -225,21 +258,29 @@ Generate 3-5 funny, clever roast bullet points about this developer's GitHub pro
  * Orchestrates GitHub API and AI API calls securely on the backend
  */
 export async function generateGitHubRoast(username) {
+    console.log(`[generateGitHubRoast] Starting roast generation for username: ${username}`);
     try {
         // Fetch GitHub data - API key is secure (backend only)
+        console.log(`[generateGitHubRoast] Step 1: Fetching GitHub data...`);
         const gitHubData = await fetchGitHubData(username);
+        console.log(`[generateGitHubRoast] GitHub data fetched successfully`);
 
         // Generate roast using AI - API key is secure (backend only)
+        console.log(`[generateGitHubRoast] Step 2: Generating AI roast...`);
         const roastText = await generateRoast(gitHubData);
+        console.log(`[generateGitHubRoast] AI roast generated successfully`);
 
         // Parse roast into bullet points
+        console.log(`[generateGitHubRoast] Step 3: Parsing roast bullet points...`);
         const roasts = roastText
             .split('\n')
             .filter((line) => line.trim().length > 0)
             .map((line) => line.replace(/^[-•*]\s+/, '').trim())
             .filter((line) => line.length > 0);
+        console.log(`[generateGitHubRoast] Parsed ${roasts.length} roast bullet points`);
 
         // Calculate engagement score (0-100)
+        console.log(`[generateGitHubRoast] Step 4: Calculating engagement score...`);
         const totalStars = gitHubData.repos.reduce(
             (sum, repo) => sum + repo.stargazers_count,
             0
@@ -253,15 +294,19 @@ export async function generateGitHubRoast(username) {
                 2
             )
         );
+        console.log(`[generateGitHubRoast] Engagement score calculated: ${score}`);
 
-        return {
+        const result = {
             username: gitHubData.profile.login,
             score,
             roasts,
         };
+        console.log(`[generateGitHubRoast] Roast generation completed successfully`);
+        return result;
     } catch (error) {
+        console.error(`[generateGitHubRoast] Error caught during roast generation:`, error);
         // Return structured error response
-        return {
+        const errorResponse = {
             username,
             score: 0,
             roasts: [],
@@ -272,5 +317,7 @@ export async function generateGitHubRoast(username) {
             },
             status: error.status || 500,
         };
+        console.error(`[generateGitHubRoast] Returning error response:`, errorResponse.error);
+        return errorResponse;
     }
 }

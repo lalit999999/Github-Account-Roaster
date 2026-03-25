@@ -53,7 +53,7 @@ Generates a roast for a GitHub user.
 **Request:**
 
 ```bash
-curl -X POST http://localhost:5000/api/roast \
+curl -X POST http://localhost:8080/api/roast \
   -H "Content-Type: application/json" \
   -d '{"username":"linus"}'
 ```
@@ -104,7 +104,7 @@ Health check endpoint.
 npm run dev:server
 ```
 
-The server will start on `http://localhost:5000` (or the PORT in .env.local)
+The server will start on `http://localhost:8080` (or the PORT in .env.local)
 
 ### With Frontend
 
@@ -130,7 +130,7 @@ Required variables in `.env.local`:
 | -------------- | ------------------------- | ----------------------- |
 | `GITHUB_TOKEN` | GitHub API authentication | `ghp_xxxxx`             |
 | `AI_API_KEY`   | OpenAI API key            | `sk-xxxxx`              |
-| `PORT`         | Server port               | `5000`                  |
+| `PORT`         | Server port               | `8080`                  |
 | `NODE_ENV`     | Environment               | `development`           |
 | `FRONTEND_URL` | Frontend origin (CORS)    | `http://localhost:5173` |
 
@@ -147,7 +147,7 @@ Required variables in `.env.local`:
              ▼
 ┌─────────────────────────────────┐
 │  Backend (Express + Node.js)    │
-│  http://localhost:5000          │
+│  http://localhost:8080          │
 │                                 │
 │  ✅ API keys kept safe here   │
 │  ✅ Makes GitHub API calls     │
@@ -203,7 +203,7 @@ Frontend displays user-friendly messages for each error.
 ### Check if server is running
 
 ```bash
-curl http://localhost:5000/api/health
+curl http://localhost:8080/api/health
 ```
 
 Should return:
@@ -258,7 +258,7 @@ COPY package*.json ./
 RUN npm install --production
 COPY . .
 RUN npm run build  # Build frontend
-EXPOSE 5000
+EXPOSE 8080
 CMD ["node", "server/index.js"]
 ```
 
@@ -270,9 +270,9 @@ CMD ["node", "server/index.js"]
 npm install
 ```
 
-### "EADDRINUSE: address already in use :::5000"
+### "EADDRINUSE: address already in use :::8080"
 
-Port 5000 is busy. Change in `.env.local`:
+Port 8080 is busy. Change in `.env.local`:
 
 ```env
 PORT=5001

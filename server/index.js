@@ -7,7 +7,7 @@ import { generateGitHubRoast } from './api.js';
 dotenv.config({ path: '.env.local' });
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 4000;
 
 // Middleware
 app.use(cors({
@@ -26,9 +26,11 @@ app.use((req, res, next) => {
 app.post('/api/roast', async (req, res) => {
     try {
         const { username } = req.body;
+        console.log(`[POST /api/roast] Received request for username: ${username}`);
 
         // Validate input
         if (!username || typeof username !== 'string') {
+            console.warn(`[POST /api/roast] Invalid input - missing or invalid username`);
             return res.status(400).json({
                 error: {
                     type: 'EMPTY_USERNAME',
@@ -38,17 +40,20 @@ app.post('/api/roast', async (req, res) => {
         }
 
         // Generate roast using secure backend APIs
+        console.log(`[POST /api/roast] Calling generateGitHubRoast function...`);
         const result = await generateGitHubRoast(username.trim());
 
         // If there was an error, return it with appropriate status
         if (result.error) {
+            console.warn(`[POST /api/roast] Error response:`, result.error);
             return res.status(result.status || 500).json(result);
         }
 
         // Success response
+        console.log(`[POST /api/roast] Success - returning roast result`);
         return res.status(200).json(result);
     } catch (error) {
-        console.error('Roast API error:', error);
+        console.error('[POST /api/roast] Unexpected error:', error);
         return res.status(500).json({
             error: {
                 type: 'UNKNOWN_ERROR',
@@ -91,6 +96,11 @@ app.listen(PORT, () => {
   ║   Environment: ${process.env.NODE_ENV || 'development'}         ║
   ╚════════════════════════════════════════╝
   
+  Configuration:
+  📝 GITHUB_TOKEN: ${process.env.GITHUB_TOKEN ? 'Configured ✓' : 'NOT CONFIGURED ✗'}
+  🔑 AI_API_KEY: ${process.env.AI_API_KEY ? 'Configured ✓' : 'NOT CONFIGURED ✗'}
+  🌐 FRONTEND_URL: ${process.env.FRONTEND_URL}
+  
   Security Notes:
   ✅ API keys stored in .env.local (server-side only)
   ✅ Frontend → Backend API (never direct GitHub/AI calls)
@@ -99,5 +109,7 @@ app.listen(PORT, () => {
   Available endpoints:
   POST   /api/roast       - Generate roast for GitHub user
   GET    /api/health      - Health check
+  
+  Debug logging enabled - Check console for detailed request/response logs.
   `);
 });
