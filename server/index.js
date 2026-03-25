@@ -2,10 +2,11 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
+import helmet from "helmet";
+
 import { fileURLToPath } from 'url';
-import { randomUUID } from 'crypto';
-import rateLimit from 'express-rate-limit';
-import { generateGitHubRoast } from './api.js';
+import { requestIdMiddleware } from './middleware/requestId.js';
+import roastRoutes from './routes/roast.js';
 
 // Get current directory (for ES modules)
 const __filename = fileURLToPath(import.meta.url);
@@ -27,48 +28,22 @@ const PORT = process.env.PORT || 4001;
 
 // CORS Configuration - secure and scoped
 app.use(cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    origin: [
+        process.env.FRONTEND_URL,
+        "http://localhost:5173"
+    ]
+    ,
     credentials: true,
 }));
+
+app.use(helmet());
 
 // Body size limits
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ limit: '1mb', extended: true }));
 
 // Request ID middleware - for tracing
-app.use((req, res, next) => {
-    req.id = randomUUID();
-    res.setHeader('X-Request-ID', req.id);
-    console.log(`[${req.id}] ${req.method} ${req.path}`);
-    next();
-});
-
-// Rate limiter for /api/roast endpoint
-// 10 requests per 15 minutes per IP address
-const roastLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 10, // Limit each IP to 10 requests per windowMs
-    message: {
-        error: {
-            type: 'RATE_LIMIT_EXCEEDED',
-            message: 'Too many roast requests. Please try again in 15 minutes.',
-        },
-    },
-    standardHeaders: true, // Return rate limit info in `RateLimit-*` headers
-    legacyHeaders: false, // Disable the `X-RateLimit-*` headers
-    skip: (req) => process.env.NODE_ENV === 'development', // Skip rate limiting in development
-    handler: (req, res) => {
-        console.warn(
-            `[${req.id}] Rate limit exceeded for IP: ${req.ip}`
-        );
-        res.status(429).json({
-            error: {
-                type: 'RATE_LIMIT_EXCEEDED',
-                message: 'Too many requests. Please try again later.',
-            },
-        });
-    },
-});
+app.use(requestIdMiddleware);
 
 // ==================== ROUTES ====================
 
@@ -104,144 +79,10 @@ app.post('/api/roast', roastLimiter, async (req, res) => {
             console.warn(`[${req.id}] [POST /api/roast] Error response:`, result.error);
             const statusCode = result.status || 500;
             return res.status(statusCode).json({
-                error: result.error,
-            });
-        }
-
-        // Success response
-        console.log(`[${req.id}] [POST /api/roast] Success - returning roast result`);
-        return res.status(200).json(result);
-    } catch (error) {
-        console.error(`[${req.id}] [POST /api/roast] Unexpected error:`, error);
-        return res.status(500).json({
-            error: {
-                type: 'UNKNOWN_ERROR',
-                message: 'An unexpected error occurred. Please try again later.',
-            },
-        });
-    }
-});
-
-/**
- * GET /api/health
- * Health check endpoint
- */
-app.get('/api/health', (req, res) => {
-    console.log(`[${req.id}] [GET /api/health] Health check`);
-    res.status(200).json({
-        status: 'ok',
-        timestamp: new Date().toISOString(),
-        requestId: req.id,
-    });
-});
-
-/**
- * GET /api/proxy-image
- * Proxy external images to bypass CORS restrictions
- * 
- * Query: { url: string }
- * Response: { dataUrl: string }
- */
-app.get('/api/proxy-image', async (req, res) => {
-    try {
-        const { url } = req.query;
-
-        if (!url || typeof url !== 'string') {
-            console.warn(`[${req.id}] [GET /api/proxy-image] Invalid URL provided`);
-            return res.status(400).json({
-                error: {
-                    type: 'INVALID_INPUT',
-                    message: 'URL is required and must be a string',
-                },
-            });
-        }
-
-        // Validate URL to prevent SSRF attacks (only allow GitHub URLs)
-        const urlObj = new URL(url);
-        if (!urlObj.hostname.includes('github.com') && !urlObj.hostname.includes('githubusercontent.com')) {
-            console.warn(`[${req.id}] [GET /api/proxy-image] Unauthorized domain: ${urlObj.hostname}`);
-            return res.status(403).json({
-                error: {
-                    type: 'FORBIDDEN',
-                    message: 'Only GitHub and GitHub user content URLs are allowed',
-                },
-            });
-        }
-
-        console.log(`[${req.id}] [GET /api/proxy-image] Proxying image from: ${url}`);
-
-        // Fetch the image from GitHub
-        const response = await fetch(url, {
-            headers: {
-                'User-Agent': 'GitHub-Roast-Tool/1.0',
-            },
-        });
-
-        if (!response.ok) {
-            console.warn(`[${req.id}] [GET /api/proxy-image] Failed to fetch image (status: ${response.status})`);
-            return res.status(response.status).json({
-                error: {
-                    type: 'IMAGE_FETCH_FAILED',
-                    message: `Failed to fetch image: ${response.statusText}`,
-                },
-            });
-        }
-
-        // Get the image buffer and convert to base64
-        const buffer = await response.arrayBuffer();
-        const base64 = Buffer.from(buffer).toString('base64');
-        const contentType = response.headers.get('content-type') || 'image/png';
-        const dataUrl = `data:${contentType};base64,${base64}`;
-
-        console.log(`[${req.id}] [GET /api/proxy-image] Successfully proxied image (size: ${buffer.byteLength} bytes)`);
-
-        return res.status(200).json({
-            dataUrl,
-        });
-    } catch (error) {
-        console.error(`[${req.id}] [GET /api/proxy-image] Error:`, error);
-        return res.status(500).json({
-            error: {
-                type: 'PROXY_ERROR',
-                message: 'Failed to proxy image',
-            },
-        });
-    }
-});
-
-// ==================== ERROR HANDLERS ====================
-
-/**
- * 404 Handler - for undefined routes
- */
-app.use((req, res) => {
-    console.warn(`[${req.id}] 404 Not Found: ${req.method} ${req.path}`);
-    res.status(404).json({
-        error: {
-            type: 'NOT_FOUND',
-            message: `Endpoint ${req.method} ${req.path} not found`,
-        },
-    });
-});
-
-/**
- * Global error handler
- */
-app.use((err, req, res, next) => {
-    console.error(`[${req.id}] Global error handler:`, err);
-    res.status(500).json({
-        error: {
-            type: 'INTERNAL_SERVER_ERROR',
-            message: 'Internal server error',
-            ...(process.env.NODE_ENV === 'development' && { details: err.message }),
-        },
-    });
-});
-
-// ==================== SERVER STARTUP ====================
-
+ / Mount API routes
+app.use('/api', roastRoutes
 const server = app.listen(PORT, () => {
-    console.log(`
+                console.log(`
 ╔════════════════════════════════════════════════════╗
 ║   GitHub Roast API Server                          ║
 ║   Version: 2.0 (Production-Ready)                  ║
@@ -276,21 +117,21 @@ Documentation:
 
 Debug Mode: ${process.env.NODE_ENV === 'development' ? 'ON (detailed error messages)' : 'OFF'}
     `);
-});
+            });
 
-// Graceful shutdown
-process.on('SIGTERM', () => {
-    console.log('SIGTERM received, shutting down gracefully...');
-    server.close(() => {
-        console.log('Server closed');
-        process.exit(0);
-    });
-});
+            // Graceful shutdown
+            process.on('SIGTERM', () => {
+                console.log('SIGTERM received, shutting down gracefully...');
+                server.close(() => {
+                    console.log('Server closed');
+                    process.exit(0);
+                });
+            });
 
-process.on('SIGINT', () => {
-    console.log('SIGINT received, shutting down gracefully...');
-    server.close(() => {
-        console.log('Server closed');
-        process.exit(0);
-    });
-});
+            process.on('SIGINT', () => {
+                console.log('SIGINT received, shutting down gracefully...');
+                server.close(() => {
+                    console.log('Server closed');
+                    process.exit(0);
+                });
+            });
