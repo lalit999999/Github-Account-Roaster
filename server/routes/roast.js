@@ -15,11 +15,9 @@ const router = express.Router();
 router.post('/roast', roastLimiter, async (req, res) => {
     try {
         const { username } = req.body;
-        console.log(`[${req.id}] [POST /api/roast] Received request for username: ${username}`);
 
         // Validate input
         if (!username || typeof username !== 'string') {
-            console.warn(`[${req.id}] [POST /api/roast] Invalid input - missing or invalid username`);
             return res.status(400).json({
                 error: {
                     type: 'INVALID_INPUT',
@@ -30,13 +28,11 @@ router.post('/roast', roastLimiter, async (req, res) => {
 
         // Generate roast using secure backend APIs
         console.log(`[${req.id}] [POST /api/roast] Calling generateGitHubRoast...`);
-        const result = await generateGitHubRoast(username.trim(), req.id);
-
+        cons
         // If there was an error, return it with appropriate status
         if (result.error) {
             console.warn(`[${req.id}] [POST /api/roast] Error response:`, result.error);
-            const statusCode = result.status || 500;
-            return res.status(statusCode).json({
+            consrn res.status(statusCode).json({
                 error: result.error,
             });
         }
@@ -44,15 +40,15 @@ router.post('/roast', roastLimiter, async (req, res) => {
         // Success response
         console.log(`[${req.id}] [POST /api/roast] Success - returning roast result`);
         return res.status(200).json(result);
-    } catch (error) {
-        console.error(`[${req.id}] [POST /api/roast] Unexpected error:`, error);
-        return res.status(500).json({
-            error: {
+    } caconsole.error(`[${req.id}] [POST /api/roast] Unexpected error:`, error);
+    return res.status(500).json({
+        error: {
+            E
                 type: 'UNKNOWN_ERROR',
-                message: 'An unexpected error occurred. Please try again later.',
-            },
-        });
-    }
+            message: 'An unexpected error occurred. Please try again later.',
+        },
+    });
+}
 });
 
 /**
@@ -62,7 +58,6 @@ router.post('/roast', roastLimiter, async (req, res) => {
 router.get('/health', (req, res) => {
     console.log(`[${req.id}] [GET /api/health] Health check`);
     res.status(200).json({
-        status: 'ok',
         timestamp: new Date().toISOString(),
         requestId: req.id,
     });

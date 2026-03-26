@@ -112,7 +112,6 @@ export async function fetchGitHubData(username, requestId = 'unknown') {
     ensureConfig();
 
     const logPrefix = `[${requestId}] [fetchGitHubData]`;
-    console.log(`${logPrefix} Starting for username: ${username}`);
 
     // Validate username
     const validation = validateUsername(username);
@@ -131,7 +130,6 @@ export async function fetchGitHubData(username, requestId = 'unknown') {
     const cacheKey = `gh:${cleanUsername}`;
     const cached = cache.get(cacheKey);
     if (cached) {
-        console.log(`${logPrefix} Cache hit for ${cleanUsername}`);
         return cached;
     }
 
@@ -194,10 +192,8 @@ export async function fetchGitHubData(username, requestId = 'unknown') {
         }
 
         const userData = await userResponse.json();
-        console.log(`${logPrefix} Successfully fetched user: ${userData.login}`);
 
-        // Fetch user repositories
-        console.log(`${logPrefix} Fetching repositories for: ${cleanUsername}`);
+        // Fetch repositories
         const reposResponse = await fetchWithTimeout(
             `https://api.github.com/users/${cleanUsername}/repos?per_page=30&sort=stars&order=desc`,
             { headers },
@@ -215,7 +211,6 @@ export async function fetchGitHubData(username, requestId = 'unknown') {
         }
 
         const repos = await reposResponse.json();
-        console.log(`${logPrefix} Successfully fetched ${repos.length} repositories`);
 
         const result = {
             profile: userData,

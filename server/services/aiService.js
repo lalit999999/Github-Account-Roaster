@@ -164,11 +164,9 @@ export async function generateRoast(gitHubData, requestId = 'unknown') {
     ensureConfig();
 
     const logPrefix = `[${requestId}] [generateRoast]`;
-    console.log(`${logPrefix} Starting for user: ${gitHubData.profile.login}`);
 
     // Use mock responses in test mode
     if (CONFIG.TEST_MODE) {
-        console.log(`${logPrefix} TEST_MODE enabled - returning mock roast`);
         const mockRoast = generateMockRoast(gitHubData);
         return mockRoast;
     }
@@ -217,7 +215,6 @@ ${gitHubData.repos
 Generate 3-5 funny, clever roast bullet points about this developer. Each point should start with a bullet point (-) and use COMPLETELY DIFFERENT grammar/sentence structure from the others.`;
 
     try {
-        console.log(`${logPrefix} Calling OpenAI API (model: ${CONFIG.OPENAI_MODEL})...`);
         const response = await fetchWithTimeout(
             `https://api.openai.com/v1/chat/completions`,
             {
@@ -245,8 +242,6 @@ Generate 3-5 funny, clever roast bullet points about this developer. Each point 
             },
             CONFIG.FETCH_TIMEOUT
         );
-
-        console.log(`${logPrefix} OpenAI API response status: ${response.status}`);
 
         if (!response.ok) {
             const errorData = await response.json();
@@ -276,8 +271,6 @@ Generate 3-5 funny, clever roast bullet points about this developer. Each point 
         }
 
         const data = await response.json();
-        console.log(`${logPrefix} OpenAI response received, parsing...`);
-        console.log(`${logPrefix} Full OpenAI API response:`, JSON.stringify(data).substring(0, 500));
 
         if (!data.choices?.[0]?.message?.content) {
             console.error(`${logPrefix} Invalid response structure:`, JSON.stringify(data).substring(0, 200));
@@ -289,19 +282,13 @@ Generate 3-5 funny, clever roast bullet points about this developer. Each point 
         }
 
         let roastText = data.choices[0].message.content.trim();
-        console.log(`${logPrefix} Generated roast length: ${roastText.length} chars`);
-        console.log(`${logPrefix} Roast preview: ${roastText.substring(0, 150)}`);
 
         if (roastText.length > CONFIG.MAX_ROAST_LENGTH) {
-            console.warn(`${logPrefix} Roast exceeded max length (${CONFIG.MAX_ROAST_LENGTH}), truncating`);
             roastText = roastText.substring(0, CONFIG.MAX_ROAST_LENGTH) + '...';
         }
 
-        console.log(`${logPrefix} Successfully generated roast`);
         return roastText;
     } catch (error) {
-        console.error(`${logPrefix} Error caught:`, error.message);
-
         if (error.status && error.type) {
             throw error;
         }
@@ -314,7 +301,6 @@ Generate 3-5 funny, clever roast bullet points about this developer. Each point 
             };
         }
 
-        console.error(`${logPrefix} Unstructured error:`, error.message);
         throw {
             status: 503,
             type: 'AI_API_ERROR',

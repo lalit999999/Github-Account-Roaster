@@ -1,4 +1,4 @@
-import html2canvas from "html2canvas";
+import { toPng } from "html-to-image";
 
 const API_URL =
   (import.meta.env.VITE_API_URL as string) || "http://localhost:4001";
@@ -24,15 +24,11 @@ async function proxifyImages(element: HTMLElement): Promise<void> {
             if (response.ok) {
               const data = await response.json();
               img.setAttribute("src", data.dataUrl);
-              console.log(`Proxified image: ${src}`);
             } else {
-              console.warn(
-                `Failed to proxify image: ${src} (status: ${response.status})`,
-              );
+              // Proxification failed, will use original URL
             }
           } catch (error) {
-            console.warn(`Error proxifying image ${src}:`, error);
-            // Keep original URL if proxification fails, html2canvas will handle it
+            // Keep original URL if proxification fails
           }
         })(),
       );
@@ -66,7 +62,6 @@ export async function captureRoastCard(
     wrapper.style.justifyContent = "center";
 
     // Clone the element
-    console.log("Cloning roast card element...");
     const clone = element.cloneNode(true) as HTMLElement;
 
     // Remove problematic Tailwind classes that use oklch colors
@@ -115,52 +110,25 @@ export async function captureRoastCard(
     await new Promise((resolve) => setTimeout(resolve, 200));
 
     // Proxify external images to bypass CORS restrictions
-    console.log("Proxifying external images...");
     await proxifyImages(clone);
 
     // Wait for images to load
     await new Promise((resolve) => setTimeout(resolve, 300));
 
-    // Convert to canvas using html2canvas
-    console.log("Converting to canvas...");
-    const canvas = await html2canvas(wrapper, {
-      backgroundColor: "#0f172a",
-      scale: 2,
-      logging: false,
-      useCORS: true,
-      allowTaint: true,
-      onclone: (clonedDocument) => {
-        // Remove any remaining problematic elements/styles from the clone
-        const allElements = clonedDocument.querySelectorAll("*");
-        allElements.forEach((el) => {
-          const computed = window.getComputedStyle(el);
-          // If element has unsupported color format, hide it
-          try {
-            const bgColor = computed.backgroundColor;
-            if (bgColor.includes("oklch")) {
-              (el as HTMLElement).style.backgroundColor = "transparent";
-            }
-          } catch (e) {
-            // Ignore errors
-          }
-        });
-      },
+    // Convert to PNG using html-to-image
+    const dataUrl = await toPng(wrapper, {
+      pixelRatio: 2,
+      quality: 1,
+      cacheBust: true,
     });
 
-    // Convert canvas to blob
-    const blob = await new Promise<Blob>((resolve) => {
-      canvas.toBlob((blob) => {
-        if (blob) resolve(blob);
-      }, "image/png");
-    });
-
-    // Convert canvas to data URL for preview
-    const dataUrl = canvas.toDataURL("image/png");
+    // Convert data URL to blob
+    const response = await fetch(dataUrl);
+    const blob = await response.blob();
 
     // Clean up
     document.body.removeChild(wrapper);
 
-    console.log(`Screenshot captured successfully (${blob.size} bytes)`);
     return { dataUrl, blob };
   } catch (error) {
     console.error("Error capturing roast card:", error);
