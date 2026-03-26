@@ -28,11 +28,13 @@ router.post('/roast', roastLimiter, async (req, res) => {
 
         // Generate roast using secure backend APIs
         console.log(`[${req.id}] [POST /api/roast] Calling generateGitHubRoast...`);
-        cons
+        const result = await generateGitHubRoast(username);
+        const statusCode = result.status || 500;
+
         // If there was an error, return it with appropriate status
         if (result.error) {
             console.warn(`[${req.id}] [POST /api/roast] Error response:`, result.error);
-            consrn res.status(statusCode).json({
+            return res.status(statusCode).json({
                 error: result.error,
             });
         }
@@ -40,15 +42,15 @@ router.post('/roast', roastLimiter, async (req, res) => {
         // Success response
         console.log(`[${req.id}] [POST /api/roast] Success - returning roast result`);
         return res.status(200).json(result);
-    } caconsole.error(`[${req.id}] [POST /api/roast] Unexpected error:`, error);
-    return res.status(500).json({
-        error: {
-            E
+    } catch (error) {
+        console.error(`[${req.id}] [POST /api/roast] Unexpected error:`, error);
+        return res.status(500).json({
+            error: {
                 type: 'UNKNOWN_ERROR',
-            message: 'An unexpected error occurred. Please try again later.',
-        },
-    });
-}
+                message: 'An unexpected error occurred. Please try again later.',
+            },
+        });
+    }
 });
 
 /**

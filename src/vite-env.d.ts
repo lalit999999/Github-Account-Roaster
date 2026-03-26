@@ -4,7 +4,7 @@ interface ImportMetaEnv {
   readonly VITE_API_URL?: string;
 }
 
-declare global {
+declare module "vite/client" {
   interface ImportMeta {
     readonly env: ImportMetaEnv;
   }

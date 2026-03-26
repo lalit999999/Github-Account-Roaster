@@ -108,23 +108,28 @@ export async function generateGitHubRoast(username, requestId = 'unknown') {
         const classification = classifyDeveloper(score);
 
         return {
-        } catch (error) {
-            console.error(`${logPrefix} Error during roast generation:`, error.message);
+            username: gitHubData.profile.login,
+            score,
+            classification,
+            roasts,
+        };
+    } catch (error) {
+        console.error(`${logPrefix} Error during roast generation:`, error.message);
 
-            // Return structured error response
-            const errorResponse = {
-                username: username.trim(),
-                score: 0,
-                roasts: [],
-                error: {
-                    type: error.type || 'UNKNOWN_ERROR',
-                    message: error.message || 'Failed to generate roast',
-                    ...(error.details && { details: error.details }),
-                },
-                status: error.status || 500,
-            };
+        // Return structured error response
+        const errorResponse = {
+            username: username.trim(),
+            score: 0,
+            roasts: [],
+            error: {
+                type: error.type || 'UNKNOWN_ERROR',
+                message: error.message || 'Failed to generate roast',
+                ...(error.details && { details: error.details }),
+            },
+            status: error.status || 500,
+        };
 
-            console.error(`${logPrefix} Error response:`, errorResponse.error);
-            return errorResponse;
-        }
+        console.error(`${logPrefix} Error response:`, errorResponse.error);
+        return errorResponse;
     }
+}
