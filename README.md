@@ -51,8 +51,8 @@
 1. **Clone the repository**
 
    ```bash
-   git clone https://github.com/yourusername/github-account-roaster.git
-   cd github-account-roaster
+   git clone https://github.com/lalit999999/Github-Account-Roaster.git
+   cd Github-Account-Roaster
    ```
 
 2. **Install dependencies**
@@ -261,7 +261,7 @@ We love contributions! Here's how to get involved:
 1. **Fork the repository**
 
    ```bash
-   git clone https://github.com/yourusername/github-account-roaster.git
+   git clone https://github.com/lalit999999/Github-Account-Roaster.git
    ```
 
 2. **Create a feature branch**
@@ -367,8 +367,8 @@ This project is licensed under the **MIT License**—feel free to use it for fun
 
 Found a bug? Have an idea? Let us know!
 
-- **GitHub Issues**: [Create an issue](https://github.com/yourusername/github-account-roaster/issues)
-- **Email**: your-email@example.com
+- **GitHub Issues**: [Create an issue](https://github.com/lalit999999/Github-Account-Roaster/issues)
+- **Email**: gujarlalit79@gmail.com
 
 ---
 
