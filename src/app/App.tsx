@@ -234,7 +234,7 @@ export default function App() {
       />
 
       {/* Main content */}
-      <div className="relative z-10 container mx-auto px-4 py-12 md:py-20">
+      <div className="relative z-10 container mx-auto px-4 py-12 md:py-20 flex flex-col items-center">
         {/* Hero section */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -319,9 +319,42 @@ export default function App() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.8 }}
-          className="text-center mt-20 text-gray-500 text-sm"
+          className="text-center mt-20 text-gray-500 text-sm space-y-3"
         >
           <p>Built with ❤️ for developers who can take a joke</p>
+          <div className="flex flex-col items-center gap-4 pt-4 border-t border-gray-700">
+            <div className="text-gray-400">
+              <p>
+                Created by{" "}
+                <a
+                  href="https://www.lalitgurjar.in/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-white hover:text-blue-400 font-semibold transition-colors duration-300 underline"
+                >
+                  Lalit Gujar
+                </a>
+              </p>
+            </div>
+            <div className="flex gap-6 text-gray-400 text-xs">
+              <a
+                href="https://github.com/lalit999999"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-white transition-colors duration-300 flex items-center gap-1"
+              >
+                <span>GitHub</span>
+              </a>
+              <a
+                href="https://linkedin.com/in/lalitgujar"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-blue-400 transition-colors duration-300 flex items-center gap-1"
+              >
+                <span>LinkedIn</span>
+              </a>
+            </div>
+          </div>
         </motion.div>
       </div>
     </div>
